@@ -1,0 +1,24 @@
+{
+  "name": "crunchitize",
+  "version": "1.0.0",
+  "description": "Turn images into Crunch textures (.crn)",
+  "main": "index.js",
+  "bin": {
+      "crunchitize":"./bin/crunchitize.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "crunch",
+    "crn",
+    "webgl"
+  ],
+  "author": "Andrew Start <start.andrew@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "glob": "^7.1.1",
+    "minimist": "^1.2.0",
+    "pngjs": "^3.0.1"
+  }
+}
