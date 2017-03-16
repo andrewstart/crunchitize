@@ -20,3 +20,5 @@ shell:
 ```
 crunchitize -f path/to/list.txt
 ```
+
+Executables for the crunch compression itself are taken from https://github.com/BKcore/crunch-osx.
