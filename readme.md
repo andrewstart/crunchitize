@@ -1,3 +1,5 @@
+## About
+Crunchitize is a tool to assist in making Crunch compressed DXT textures. It currently converts PNG images, and by default makes them pre-multiplied to be friendly to pixi.js. If it finds a .json file with the same name as a converted .png, it also modifies that json file's `meta.image` property to point at the new texture file instead of the (assumed) png.
 ## Usage:
     -f, --files  Glob path or path to .txt file list of glob paths to .pngs to process.
     -q, --quality  Quality of crunch output, 0-1. Default is 0.5.
