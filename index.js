@@ -17,15 +17,19 @@ class Crunchitize {
         const minimist = require('minimist');
         const args = minimist(process.argv.slice(2), {
             string: ['target'],
+            boolean: ['premultiplied', 'deleteInput'],
             alias: {
                 f: 'files',
                 q: 'quality',
                 pm: 'premultiplied',
+                d: 'deleteInput',
                 h: 'help'
             },
             default: {
                 quality: 0.5,
-                premultiplied: true
+                premultiplied: true,
+                format: 'crn',
+                deleteInput: false
             }
         });
         
@@ -36,6 +40,8 @@ class Crunchitize {
         -f, --files  Glob path or path to .txt file list of glob paths to .pngs to process.
         -q, --quality  Quality of crunch output, 0-1. Default is 0.5.
         -pm, --premultiplied  If the input pngs should be converted to premultiplied alpha images first. Default is true.
+        --format  'crn' for .crn, or 'dds' for .dds. Default is 'crn'.
+        -d, --deleteInput  If the input pngs should be deleted after being converted. Default is false.
 `;
             console.log(help);
             return;
@@ -52,7 +58,12 @@ class Crunchitize {
             {
                 process.exitCode = 0;
             }
-        }, args.quality, args.premultiplied);
+        }, {
+            quality: args.quality,
+            premultiply: args.hasOwnProperty('premultiplied') ? !!args.premultiplied : true,
+            format: args.format,
+            delete: args.hasOwnProperty('deleteInput') ? args.deleteInput !== false : false
+        });
     }
     
     constructor()
@@ -75,8 +86,10 @@ class Crunchitize {
         }
     }
     
-    process(targetGlobs, callback, quality, premultiply)
+    process(targetGlobs, callback, options)
     {
+        if (!options)
+            options = {};
         const maxParallel = 4;
         const active = [];
         let prom;
@@ -91,7 +104,7 @@ class Crunchitize {
             prom = this.getGlobMatches(targetGlobs);
         }
         prom = prom.then((matches) => {
-            return this.handleImages(matches, quality, premultiply);
+            return this.handleImages(matches, options);
         });
         prom.then(() => {
             callback();
@@ -162,23 +175,27 @@ class Crunchitize {
         });
     }
     
-    handleImages(matches, quality, premultiply)
+    handleImages(matches, options)
     {
         let prom = Promise.resolve();
         matches.forEach((match) => {
             prom = prom.then(() => {
-                return this.handleImage(match, this.qualityDict[match] || quality || 0.5, typeof premultiply === 'boolean' ? premultiply : true)
+                return this.handleImage(match,
+                    this.qualityDict[match] || options.quality || 0.5,
+                    typeof options.premultiply === 'boolean' ? options.premultiply : true,
+                    options.format || 'crn',
+                    options.delete)
             });
         });
         return prom;
     }
     
-    handleImage(pngPath, quality, premultiply)
+    handleImage(pngPath, quality, premultiply, format, deleteFile)
     {
         console.log('\nhandling ' + localPath(pngPath));
         pngPath = path.resolve(pngPath);
         const props = path.parse(pngPath);
-        props.ext = '.crn';
+        props.ext = format === 'dds' ? '.dds' : '.crn';
         const crnPath = path.join(props.dir, props.name + props.ext);
         let tempFile;
         let prom;
@@ -194,18 +211,12 @@ class Crunchitize {
             prom = Promise.resolve(pngPath);
         }
         prom = prom.then((srcPath) => {
-            return this.crunch(srcPath, crnPath, quality);
+            return this.crunch(srcPath, crnPath, quality, format === 'dds' ? 'dds' : 'crn');
         }).then(() => {
             if (tempFile)
             {
-                return new Promise((resolve, reject) => {
-                    console.log('removing temp image ' + localPath(tempFile));
-                    fs.unlink(tempFile, (err) => {
-                        if (err)
-                            return reject(err);
-                        resolve();
-                    });
-                });
+                console.log('removing temp image ' + localPath(tempFile));
+                return this.deleteFile(tempFile);
             }
         }).then(() => {
             const props = path.parse(pngPath);
@@ -214,6 +225,12 @@ class Crunchitize {
             if (fs.existsSync(jsonPath))
             {
                 return this.modifySpritesheet(jsonPath, crnPath);
+            }
+        }).then(() => {
+            if (deleteFile)
+            {
+                console.log('removing source image ' + localPath(pngPath));
+                return this.deleteFile(pngPath);
             }
         });
         return prom;
@@ -247,14 +264,14 @@ class Crunchitize {
         });
     }
     
-    crunch(pngPath, crnPath, quality)
+    crunch(pngPath, crnPath, quality, format)
     {
         return new Promise((resolve, reject) => {
             console.log('crunching ' + localPath(pngPath) + ' to ' + localPath(crnPath) + ' with quality of ' + quality);
             const args = [
                 '-file', pngPath,
                 '-out', crnPath,
-                '-fileformat', 'crn',
+                '-fileformat', format,
                 '-DXT5',
                 '-quality', Math.max(Math.min(Math.round(quality * 255), 255), 0),
                 '-mipMode', 'None'
@@ -293,6 +310,17 @@ class Crunchitize {
                         return reject(err);
                     resolve();
                 });
+            });
+        });
+    }
+    
+    deleteFile(file)
+    {
+        return new Promise((resolve, reject) => {
+            fs.unlink(file, (err) => {
+                if (err)
+                    return reject(err);
+                resolve();
             });
         });
     }
