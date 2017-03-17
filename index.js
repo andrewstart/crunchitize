@@ -140,12 +140,10 @@ class Crunchitize {
             }
             const targetPath = target[i];
             target[i] = new Promise((resolve, reject) => {
-                console.log('glob target path of ' + targetPath);
                 glob(targetPath, (err, matches) => {
                     if (err) {
                         return reject(err);
                     }
-                    console.log('matches?', matches);
                     resolve(matches);
                 });
             });
@@ -177,7 +175,7 @@ class Crunchitize {
     
     handleImage(pngPath, quality, premultiply)
     {
-        console.log('\ngoing to handle ' + localPath(pngPath));
+        console.log('\nhandling ' + localPath(pngPath));
         pngPath = path.resolve(pngPath);
         const props = path.parse(pngPath);
         props.ext = '.crn';
