@@ -198,17 +198,23 @@ class Crunchitize {
         props.ext = format === 'dds' ? '.dds' : '.crn';
         const crnPath = path.join(props.dir, props.name + props.ext);
         let tempFile;
-        let prom;
+        let prom = this.readPNG(pngPath).then((png) => {
+            return this.assertValidSize(png);
+        });
         if (premultiply)
         {
-            prom = this.premultiplyPNG(pngPath).then((outPath) => {
-                tempFile = outPath;
-                return outPath;
+            prom = prom.then((png) => {
+                return this.premultiplyPNG(pngPath, png).then((outPath) => {
+                    tempFile = outPath;
+                    return outPath;
+                });
             });
         }
         else
         {
-            prom = Promise.resolve(pngPath);
+            prom = prom.then(() => {
+                return Promise.resolve(pngPath);
+            });
         }
         prom = prom.then((srcPath) => {
             return this.crunch(srcPath, crnPath, quality, format === 'dds' ? 'dds' : 'crn');
@@ -232,34 +238,62 @@ class Crunchitize {
                 console.log('removing source image ' + localPath(pngPath));
                 return this.deleteFile(pngPath);
             }
+        }).catch((err) => {
+            console.error('failed on ' + localPath(pngPath) + ': ' + err);
         });
         return prom;
     }
     
-    premultiplyPNG(pngPath)
+    readPNG(pngPath)
     {
         return new Promise((resolve, reject) => {
-            console.log('converting ' + localPath(pngPath) + ' to premultiplied alpha');
             fs.createReadStream(pngPath)
             .pipe(new PNG())
             .on('parsed', function() {
-                for (let y = 0; y < this.height; y++) {
-                    for (let x = 0; x < this.width; x++) {
-                        let idx = (this.width * y + x) << 2;
-                        let alpha = this.data[idx+3] / 255;
-                        // multiply by alpha
-                        this.data[idx] = Math.round(this.data[idx] * alpha);
-                        this.data[idx+1] = Math.round(this.data[idx+1] * alpha);
-                        this.data[idx+2] = Math.round(this.data[idx+2] * alpha);
-                    }
+                resolve(this);
+            });
+        });
+    }
+    
+    assertValidSize(png)
+    {
+        return new Promise((resolve, reject) => {
+            if (png.width < 64 || png.height < 64)
+            {
+                return reject('width and height must be at least 64 pixels');
+            }
+            if (png.width % 4 !== 0)
+            {
+                return reject('width must each be a multiple of 4');
+            }
+            if (png.height % 4 !== 0)
+            {
+                return reject('height must each be a multiple of 4');
+            }
+            resolve(png);
+        });
+    }
+    
+    premultiplyPNG(pngPath, png)
+    {
+        return new Promise((resolve, reject) => {
+            console.log('converting ' + localPath(pngPath) + ' to premultiplied alpha');
+            for (let y = 0; y < png.height; y++) {
+                for (let x = 0; x < png.width; x++) {
+                    let idx = (png.width * y + x) << 2;
+                    let alpha = png.data[idx+3] / 255;
+                    // multiply by alpha
+                    png.data[idx] = Math.round(png.data[idx] * alpha);
+                    png.data[idx+1] = Math.round(png.data[idx+1] * alpha);
+                    png.data[idx+2] = Math.round(png.data[idx+2] * alpha);
                 }
-                
-                const props = path.parse(pngPath);
-                props.name += '_pma';
-                const outPath = path.join(props.dir, props.name + props.ext);
-                this.pack().pipe(fs.createWriteStream(outPath)).on('close', () => {
-                    resolve(outPath);
-                });
+            }
+            
+            const props = path.parse(pngPath);
+            props.name += '_pma';
+            const outPath = path.join(props.dir, props.name + props.ext);
+            png.pack().pipe(fs.createWriteStream(outPath)).on('close', () => {
+                resolve(outPath);
             });
         });
     }
