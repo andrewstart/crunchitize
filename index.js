@@ -23,13 +23,15 @@ class Crunchitize {
                 q: 'quality',
                 pm: 'premultiplied',
                 d: 'deleteInput',
+                r: 'resize',
                 h: 'help'
             },
             default: {
                 quality: 0.5,
                 premultiplied: true,
                 format: 'crn',
-                deleteInput: false
+                deleteInput: false,
+                resize: null
             }
         });
         
@@ -62,7 +64,8 @@ class Crunchitize {
             quality: args.quality,
             premultiply: args.hasOwnProperty('premultiplied') ? !!args.premultiplied : true,
             format: args.format,
-            delete: args.hasOwnProperty('deleteInput') ? args.deleteInput !== false : false
+            delete: args.hasOwnProperty('deleteInput') ? args.deleteInput !== false : false,
+            resize: args.resize
         });
     }
     
@@ -120,7 +123,7 @@ class Crunchitize {
                 if (err)
                     return reject(err);
                 const lines = data.split(/\r?\n/g);
-                const qualityCheck = /.* ((?:0\.)?\d+)$/g;
+                const qualityCheck = /.* ((?:0\.)?\d+)? ?(scale|border)?$/;
                 //see if any lines include a quality value
                 for (let i = 0; i < lines.length; ++i)
                 {
@@ -184,23 +187,49 @@ class Crunchitize {
                     this.qualityDict[match] || options.quality || 0.5,
                     typeof options.premultiply === 'boolean' ? options.premultiply : true,
                     options.format || 'crn',
-                    options.delete)
+                    options.delete,
+                    options.resize)
             });
         });
         return prom;
     }
     
-    handleImage(pngPath, quality, premultiply, format, deleteFile)
+    handleImage(pngPath, quality, premultiply, format, deleteFile, resize)
     {
         console.log('\nhandling ' + localPath(pngPath));
         pngPath = path.resolve(pngPath);
         const props = path.parse(pngPath);
         props.ext = format === 'dds' ? '.dds' : '.crn';
         const crnPath = path.join(props.dir, props.name + props.ext);
+        //target size for 'scale' resize mode
+        let targetWidth = 0;
+        let targetHeight = 0;
         let tempFile;
-        let prom = this.readPNG(pngPath).then((png) => {
-            return this.assertValidSize(png);
-        });
+        let prom = this.readPNG(pngPath);
+        if (!resize)
+        {
+            prom = prom.then((png) => {
+                return this.assertValidSize(png);
+            });
+        }
+        else if (resize === 'border')
+        {
+            prom = prom.then((png) => {
+                return this.addEdge(png);
+            });
+        }
+        else if (resize === 'scale')
+        {
+            prom = prom.then((png) => {
+                targetWidth = 4 - (png.width % 4);
+                if (targetWidth === 4) targetWidth = 0;
+                targetWidth += png.width;
+                targetHeight = 4 - (png.height % 4);
+                if (targetHeight === 4) targetHeight = 0;
+                targetHeight += png.height;
+                return png;
+            });
+        }
         if (premultiply)
         {
             prom = prom.then((png) => {
@@ -217,7 +246,7 @@ class Crunchitize {
             });
         }
         prom = prom.then((srcPath) => {
-            return this.crunch(srcPath, crnPath, quality, format === 'dds' ? 'dds' : 'crn');
+            return this.crunch(srcPath, crnPath, quality, format === 'dds' ? 'dds' : 'crn', targetWidth, targetHeight);
         }).then(() => {
             if (tempFile)
             {
@@ -274,6 +303,31 @@ class Crunchitize {
         });
     }
     
+    addEdge(png)
+    {
+        return new Promise((resolve, reject) => {
+            let width = 4 - (png.width % 4);
+            if (width === 4) width = 0;
+            width += png.width;
+            let height = 4 - (png.height % 4);
+            if (height === 4) height = 0;
+            height += png.height;
+            const resized = new PNG({
+                inputHasAlpha: true,
+                bgColor: {
+                    red: 0,
+                    green: 0,
+                    blue: 0
+                },
+                width,
+                height
+            });
+            png.bitblt(resized, 0, 0, png.width, png.height, 0, 0);
+            
+            resolve(resized);
+        });
+    }
+    
     premultiplyPNG(pngPath, png)
     {
         return new Promise((resolve, reject) => {
@@ -298,7 +352,7 @@ class Crunchitize {
         });
     }
     
-    crunch(pngPath, crnPath, quality, format)
+    crunch(pngPath, crnPath, quality, format, width, height)
     {
         return new Promise((resolve, reject) => {
             console.log('crunching ' + localPath(pngPath) + ' to ' + localPath(crnPath) + ' with quality of ' + quality);
@@ -310,6 +364,10 @@ class Crunchitize {
                 '-quality', Math.max(Math.min(Math.round(quality * 255), 255), 0),
                 '-mipMode', 'None'
             ];
+            if (width && height)
+            {
+                args.push('-rescale', width, height);
+            }
             execFile(path.join(__dirname, this.executable), args, {
                 cwd: process.cwd(),
                 env: process.env,
