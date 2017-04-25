@@ -7,6 +7,7 @@ Crunchitize currently does not modify image sizes, so your input images *must* b
     -pm, --premultiplied  If the input pngs should be converted to premultiplied alpha images first. Default is true.
     --format  'crn' for .crn, or 'dds' for .dds. Default is 'crn'.
     -d, --deleteInput  If the input pngs should be deleted after being converted. Default is false.
+    -r, --resize  How to resize input images to be multiple of 4 dimensions. Options are 'scale' to scale up, 'border' to add transparency to the right and bottom. The default is to not resize, and skip invalid images.
 ### Convert a single file
 ```
 crunchitize -f path/to/my.png
@@ -23,7 +24,8 @@ crunchitize -f path/to/folder/ --format dds
 list.txt:
 ```
 path/to/my.png 0.8
-path/to/other.png 0.3
+path/to/other.png 0.3 scale
+path/to/another.png border
 ```
 shell:
 ```
