@@ -16,7 +16,7 @@ class Crunchitize {
     {
         const minimist = require('minimist');
         const args = minimist(process.argv.slice(2), {
-            string: ['target'],
+            string: ['files', 'format', 'resize'],
             boolean: ['premultiplied', 'deleteInput'],
             alias: {
                 f: 'files',
@@ -44,6 +44,7 @@ class Crunchitize {
         -pm, --premultiplied  If the input pngs should be converted to premultiplied alpha images first. Default is true.
         --format  'crn' for .crn, or 'dds' for .dds. Default is 'crn'.
         -d, --deleteInput  If the input pngs should be deleted after being converted. Default is false.
+        -r, --resize  How to resize input images to be multiple of 4 dimensions. Options are 'scale' to scale up, 'border' to add transparency to the right and bottom. The default is to not resize, and skip invalid images.
 `;
             console.log(help);
             return;
@@ -221,12 +222,9 @@ class Crunchitize {
         else if (resize === 'scale')
         {
             prom = prom.then((png) => {
-                targetWidth = 4 - (png.width % 4);
-                if (targetWidth === 4) targetWidth = 0;
-                targetWidth += png.width;
-                targetHeight = 4 - (png.height % 4);
-                if (targetHeight === 4) targetHeight = 0;
-                targetHeight += png.height;
+                let {width, height} = this.getValidSize(png);
+                targetWidth = width;
+                targetHeight = height;
                 return png;
             });
         }
@@ -293,25 +291,33 @@ class Crunchitize {
             }
             if (png.width % 4 !== 0)
             {
-                return reject('width must each be a multiple of 4');
+                return reject('width must be a multiple of 4');
             }
             if (png.height % 4 !== 0)
             {
-                return reject('height must each be a multiple of 4');
+                return reject('height must be a multiple of 4');
             }
             resolve(png);
         });
     }
     
+    getValidSize(png)
+    {
+        let width = 4 - (png.width % 4);
+        if (width === 4) width = 0;
+        width += png.width;
+        let height = 4 - (png.height % 4);
+        if (height === 4) height = 0;
+        height += png.height;
+        if (width < 64) width = 64;
+        if (height < 64) height = 64;
+        return {width, height};
+    }
+    
     addEdge(png)
     {
         return new Promise((resolve, reject) => {
-            let width = 4 - (png.width % 4);
-            if (width === 4) width = 0;
-            width += png.width;
-            let height = 4 - (png.height % 4);
-            if (height === 4) height = 0;
-            height += png.height;
+            let {width, height} = this.getValidSize(png);
             const resized = new PNG({
                 inputHasAlpha: true,
                 bgColor: {
