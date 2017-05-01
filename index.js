@@ -125,9 +125,15 @@ class Crunchitize {
                     return reject(err);
                 const lines = data.split(/\r?\n/g);
                 const qualityCheck = /.* ((?:0\.)?\d+)? ?(scale|border)?$/;
+                const whitespace = /^\s*$/;
                 //see if any lines include a quality value
                 for (let i = 0; i < lines.length; ++i)
                 {
+                    //skip empty lines
+                    if (whitespace.test(lines[i])) {
+                        lines.splice(i--, 1);
+                        continue;
+                    }
                     let result = qualityCheck.exec(lines[i]);
                     if (result)
                     {
