@@ -1,6 +1,6 @@
 {
   "name": "crunchitize",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Turn images into Crunch textures (.crn)",
   "main": "index.js",
   "bin": {
