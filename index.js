@@ -73,6 +73,7 @@ class Crunchitize {
     constructor()
     {
         this.qualityDict = {};
+        this.resizeDict = {};
         switch (process.platform)
         {
             case 'win32':
@@ -124,7 +125,7 @@ class Crunchitize {
                 if (err)
                     return reject(err);
                 const lines = data.split(/\r?\n/g);
-                const qualityCheck = /.* ((?:0\.)?\d+)? ?(scale|border)?$/;
+                const qualityCheck = /.*? ((?:0\.)?\d+)? ?(scale|border)?$/;
                 const whitespace = /^\s*$/;
                 //see if any lines include a quality value
                 for (let i = 0; i < lines.length; ++i)
@@ -134,13 +135,19 @@ class Crunchitize {
                         lines.splice(i--, 1);
                         continue;
                     }
+                    lines[i] = lines[i].trim();
                     let result = qualityCheck.exec(lines[i]);
                     if (result)
                     {
                         //remove quality value from line
-                        lines[i] = lines[i].replace(result[1], '').trim();
+                        if (result[1])
+                            lines[i] = lines[i].replace(result[1], '').trim();
+                        if (result[2])
+                            lines[i] = lines[i].replace(result[2], '').trim();
                         //store quality value for that file
                         this.qualityDict[lines[i]] = parseFloat(result[1]);
+                        //store resize info
+                        this.resizeDict[lines[i]] = result[2];
                     }
                 }
                 resolve(lines);
@@ -195,7 +202,7 @@ class Crunchitize {
                     typeof options.premultiply === 'boolean' ? options.premultiply : true,
                     options.format || 'crn',
                     options.delete,
-                    options.resize)
+                    this.resizeDict[match] || options.resize)
             });
         });
         return prom;
