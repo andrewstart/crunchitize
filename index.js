@@ -162,6 +162,7 @@ class Crunchitize {
         {
             target = [target];
         }
+        const origTarget = target.slice();
         for (let i = 0; i < target.length; ++i)
         {
             if (target[i].indexOf('.png') === -1)
@@ -183,9 +184,13 @@ class Crunchitize {
             for (let i = 0; i < globList.length; ++i)
             {
                 const list = globList[i];
+                const target = origTarget[i];
                 for (let j = 0; j < list.length; ++j)
                 {
-                    matches.push(list[j]);
+                    const fullPath = list[j];
+                    this.qualityDict[fullPath] = this.qualityDict[target];
+                    this.resizeDict[fullPath] = this.resizeDict[target];
+                    matches.push(fullPath);
                 }
             }
             return matches;
