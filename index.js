@@ -386,7 +386,8 @@ class Crunchitize {
                 '-fileformat', format,
                 '-DXT5',
                 '-quality', Math.max(Math.min(Math.round(quality * 255), 255), 0),
-                '-mipMode', 'None'
+                '-mipMode', 'None',
+                '-noprogress',// don't fill up stdout buffer
             ];
             if (width && height)
             {
