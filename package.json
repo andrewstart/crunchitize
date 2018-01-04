@@ -19,6 +19,7 @@
   "dependencies": {
     "glob": "^7.1.1",
     "minimist": "^1.2.0",
-    "pngjs": "^3.0.1"
+    "pngjs": "^3.0.1",
+    "noisejs": "^2.1.0"
   }
 }

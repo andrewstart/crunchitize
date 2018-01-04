@@ -5,10 +5,15 @@ const path = require('path');
 const glob = require('glob');
 const PNG = require('pngjs').PNG;
 const execFile = require('child_process').execFile;
+const Noise = require('noisejs').Noise;
 
 function localPath(input)
 {
     return path.relative(process.cwd(), input);
+}
+
+function clamp(val, min, max) {
+    return val < min ? min : (val > max ? max : val);
 }
 
 class Crunchitize {
@@ -22,6 +27,7 @@ class Crunchitize {
                 f: 'files',
                 q: 'quality',
                 pm: 'premultiplied',
+                n: 'noise',
                 d: 'deleteInput',
                 r: 'resize',
                 h: 'help'
@@ -29,6 +35,7 @@ class Crunchitize {
             default: {
                 quality: 0.5,
                 premultiplied: true,
+                noise: 0,
                 format: 'crn',
                 deleteInput: false,
                 resize: null
@@ -42,6 +49,7 @@ class Crunchitize {
         -f, --files  Glob path or path to .txt file list of glob paths to .pngs to process.
         -q, --quality  Quality of crunch output, 0-1. Default is 0.5.
         -pm, --premultiplied  If the input pngs should be converted to premultiplied alpha images first. Default is true.
+        -n, --noise  Strength of noise to apply to image before processing, from 0-1 (small numbers suggested). Default is 0.
         --format  'crn' for .crn, or 'dds' for .dds. Default is 'crn'.
         -d, --deleteInput  If the input pngs should be deleted after being converted. Default is false.
         -r, --resize  How to resize input images to be multiple of 4 dimensions. Options are 'scale' to scale up, 'border' to add transparency to the right and bottom. The default is to not resize, and skip invalid images.
@@ -66,7 +74,8 @@ class Crunchitize {
             premultiply: args.hasOwnProperty('premultiplied') ? !!args.premultiplied : true,
             format: args.format,
             delete: args.hasOwnProperty('deleteInput') ? args.deleteInput !== false : false,
-            resize: args.resize
+            resize: args.resize,
+            noise: args.noise
         });
     }
     
@@ -207,13 +216,14 @@ class Crunchitize {
                     typeof options.premultiply === 'boolean' ? options.premultiply : true,
                     options.format || 'crn',
                     options.delete,
-                    this.resizeDict[match] || options.resize)
+                    this.resizeDict[match] || options.resize,
+                    options.noise)
             });
         });
         return prom;
     }
     
-    handleImage(pngPath, quality, premultiply, format, deleteFile, resize)
+    handleImage(pngPath, quality, premultiply, format, deleteFile, resize, noise)
     {
         console.log('\nhandling ' + localPath(pngPath));
         pngPath = path.resolve(pngPath);
@@ -246,10 +256,22 @@ class Crunchitize {
                 return png;
             });
         }
+        const needsTemp = noise || premultiply;
+        if (noise) {
+            prom = prom.then((png) => {
+                return this.applyNoise(pngPath, png, noise);
+            });
+        }
         if (premultiply)
         {
             prom = prom.then((png) => {
-                return this.premultiplyPNG(pngPath, png).then((outPath) => {
+                return this.premultiplyPNG(pngPath, png);
+            });
+        }
+        if (needsTemp) {
+            prom = prom.then((png) => {
+                return this.saveTempImage(pngPath, png)
+                .then((outPath) => {
                     tempFile = outPath;
                     return outPath;
                 });
@@ -267,7 +289,7 @@ class Crunchitize {
             if (tempFile)
             {
                 console.log('removing temp image ' + localPath(tempFile));
-                return this.deleteFile(tempFile);
+                //return this.deleteFile(tempFile);
             }
         }).then(() => {
             const props = path.parse(pngPath);
@@ -366,9 +388,34 @@ class Crunchitize {
                     png.data[idx+2] = Math.round(png.data[idx+2] * alpha);
                 }
             }
+            resolve(png);
+        });
+    }
+    
+    applyNoise(pngPath, png, strength)
+    {
+        return new Promise((resolve, reject) => {
+            console.log('applying noise at ' + (strength * 100) + '% to ' + pngPath);
+            const noise = new Noise(0);
+            for (let y = 0; y < png.height; y++) {
+                for (let x = 0; x < png.width; x++) {
+                    let idx = (png.width * y + x) << 2;
+                    const offset = Math.round(noise.simplex2(x, y) * 255 * strength);
+                    // apply offset evenly to RGB
+                    png.data[idx] = clamp(png.data[idx] + offset, 0, 255);
+                    png.data[idx+1] = clamp(png.data[idx+1] + offset, 0, 255);
+                    png.data[idx+2] = clamp(png.data[idx+2] + offset, 0, 255);
+                }
+            }
             
+            resolve(png);
+        });
+    }
+    
+    saveTempImage(pngPath, png) {
+        return new Promise((resolve) => {
             const props = path.parse(pngPath);
-            props.name += '_pma';
+            props.name += '_temp';
             const outPath = path.join(props.dir, props.name + props.ext);
             png.pack().pipe(fs.createWriteStream(outPath)).on('close', () => {
                 resolve(outPath);
