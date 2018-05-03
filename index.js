@@ -289,7 +289,7 @@ class Crunchitize {
             if (tempFile)
             {
                 console.log('removing temp image ' + localPath(tempFile));
-                //return this.deleteFile(tempFile);
+                return this.deleteFile(tempFile);
             }
         }).then(() => {
             const props = path.parse(pngPath);
