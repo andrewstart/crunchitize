@@ -4,6 +4,7 @@ Crunchitize is a tool to assist in making Crunch compressed DXT textures. It cur
     -f, --files  Glob path or path to .txt file list of glob paths to .pngs to process.
     -q, --quality  Quality of crunch output, 0-1. Default is 0.5.
     -pm, --premultiplied  If the input pngs should be converted to premultiplied alpha images first. Default is true.
+    -n, --noise  Strength of noise to apply to image before processing, from 0-1 (small numbers suggested). Default is 0.
     --format  'crn' for .crn, or 'dds' for .dds. Default is 'crn'.
     -d, --deleteInput  If the input pngs should be deleted after being converted. Default is false.
     -r, --resize  How to resize input images to be multiple of 4 dimensions. Options are 'scale' to scale up, 'border' to add transparency to the right and bottom. The default is to not resize, and skip invalid images.
